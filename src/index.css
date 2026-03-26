@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  ── Customize your brand here ──────────────────────────────────────────────
+  These CSS variables drive the base color palette.
+  Swap out the values to match your brand without touching component code.
+*/
+:root {
+  --color-primary: #111827;       /* buttons, links, accents */
+  --color-primary-hover: #374151;
+  --color-bg: #ffffff;
+  --color-surface: #f9fafb;       /* card backgrounds */
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-muted: #6b7280;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
