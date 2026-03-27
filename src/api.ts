@@ -1,11 +1,15 @@
 /*
   api.ts — Gentry Commerce headless API client
   ─────────────────────────────────────────────
-  Every request automatically includes the X-Store-Api-Key header.
-  Set VITE_STORE_URL and VITE_STORE_API_KEY in your .env file.
+  VITE_STORE_URL  — The Gentry Commerce platform base URL.
+                    Always set this to https://gentrycommerce.com (or your
+                    self-hosted domain). Do NOT include the store slug here.
+                    The API key in the header scopes every request to your store.
+
+  VITE_STORE_API_KEY — Your headless API key from the admin → Integrations panel.
 */
 
-const BASE_URL = (import.meta.env.VITE_STORE_URL as string) || 'https://gentrycommerce.com';
+const BASE_URL = (import.meta.env.VITE_STORE_URL as string)?.replace(/\/$/, '') || 'https://gentrycommerce.com';
 const API_KEY  = (import.meta.env.VITE_STORE_API_KEY as string) || '';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -24,45 +28,82 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * Resolve a potentially-relative image path to a full URL.
+ * The API returns image paths like /objects/uploads/hat.png — prefix them
+ * with the platform base URL so they render correctly in your app.
+ */
+export function resolveImageUrl(path?: string | null): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
+/** A product image from the gallery (may be color/variant-linked). */
 export interface ProductImage {
   id: string;
-  url: string;
-  altText?: string;
-  position: number;
+  productId: string;
+  imageUrl: string;
+  color?: string | null;
+  isDefault: boolean;
+  isHover: boolean;
+  variantId?: string | null;
+  displayOrder: number;
 }
 
+/**
+ * A product variant (size/color combination).
+ * Variants do NOT have their own price — price is always on the parent product.
+ * Use product.price (cents) for all pricing; variants only track stock.
+ */
 export interface ProductVariant {
   id: string;
-  name: string;
-  price: string;
-  compareAtPrice?: string;
-  stock?: number;
-  sku?: string;
-  attributes?: Record<string, string>;
+  productId: string;
+  size?: string | null;
+  color?: string | null;
+  stock: number;
+  sku?: string | null;
+  imageUrl?: string | null;
+  lowStockThreshold?: number | null;
 }
 
+/**
+ * A product as returned by /api/products and /api/products/:id.
+ *
+ * Key notes:
+ *  • price and salePrice are integers in CENTS (e.g. 2999 = $29.99)
+ *  • imageUrl is a single relative path — use resolveImageUrl() to display it
+ *  • isActive indicates whether the product is available for purchase
+ *  • isOnSale + salePrice replace the old compareAtPrice concept
+ *  • images[] is the full gallery (shape above) — often empty if the merchant
+ *    only used imageUrl; fall back to imageUrl when images is empty
+ */
 export interface Product {
   id: string;
   name: string;
   description?: string;
-  price: string;
-  compareAtPrice?: string;
-  category?: string;
-  slug?: string;
+  price: number;
+  salePrice?: number | null;
+  isOnSale: boolean;
+  imageUrl?: string | null;
+  category: string;
+  isActive: boolean;
+  hideFromWebsite: boolean;
+  archivedAt?: string | null;
   images: ProductImage[];
   variants: ProductVariant[];
-  inStock: boolean;
-  isFeatured?: boolean;
 }
 
 export interface Collection {
   id: string;
   name: string;
   slug: string;
-  description?: string;
-  imageUrl?: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  displayOrder: number;
+  isActive: boolean;
 }
 
 export interface StoreSettings {
@@ -79,54 +120,43 @@ export interface HeroSettings {
   ctaUrl?: string;
 }
 
-export interface TripType {
-  id: string;
-  name: string;
-  description?: string;
-  duration?: number;
-  price?: string;
-  imageUrl?: string;
-  category?: string;
-}
-
-export interface Provider {
-  id: string;
-  name: string;
-  bio?: string;
-  imageUrl?: string;
-  specialties?: string[];
-}
-
-export interface BookingAvailability {
-  date: string;
-  slots: { time: string; available: boolean }[];
-}
-
 // ─── Products ──────────────────────────────────────────────────────────────
 
+/**
+ * Fetch the public product catalog.
+ * Always pass public: true so hidden/archived products are excluded.
+ * Category filtering is done server-side via the ?category= param.
+ */
 export function getProducts(params?: {
   category?: string;
   search?: string;
   limit?: number;
   offset?: number;
-  featured?: boolean;
 }) {
   const qs = new URLSearchParams();
+  qs.set('public', '1');
   if (params?.category) qs.set('category', params.category);
   if (params?.search)   qs.set('search', params.search);
   if (params?.limit)    qs.set('limit', String(params.limit));
   if (params?.offset)   qs.set('offset', String(params.offset));
-  if (params?.featured) qs.set('featured', '1');
-  const query = qs.toString();
-  return request<Product[]>(`/api/products${query ? `?${query}` : ''}`);
+  return request<Product[]>(`/api/products?${qs}`);
 }
 
 export function getProduct(id: string) {
   return request<Product>(`/api/products/${id}`);
 }
 
+// ─── Collections ─────────────────────────────────────────────────────────────
+
 export function getCollections() {
   return request<Collection[]>('/api/collections');
+}
+
+// ─── Categories ──────────────────────────────────────────────────────────────
+
+/** Returns a flat list of category name strings used by products in this store. */
+export function getCategories() {
+  return request<{ name: string }[]>('/api/categories');
 }
 
 // ─── Store info ─────────────────────────────────────────────────────────────
@@ -139,39 +169,6 @@ export function getHeroSettings() {
   return request<HeroSettings>('/api/settings/hero');
 }
 
-// ─── Bookings ───────────────────────────────────────────────────────────────
-
-export function getTripTypes() {
-  return request<TripType[]>('/api/trip-types');
-}
-
-export function getProviders() {
-  return request<Provider[]>('/api/providers');
-}
-
-export function getAvailability(params: {
-  providerId?: string;
-  tripTypeId?: string;
-  startDate: string;
-  endDate: string;
-}) {
-  const qs = new URLSearchParams(params as Record<string, string>);
-  return request<BookingAvailability[]>(`/api/bookings/availability?${qs}`);
-}
-
-export function createBooking(data: {
-  customerName: string;
-  customerEmail: string;
-  providerId?: string;
-  tripTypeId: string;
-  date: string;
-  time: string;
-  guests?: number;
-  notes?: string;
-}) {
-  return request('/api/bookings', { method: 'POST', body: JSON.stringify(data) });
-}
-
 // ─── Checkout ───────────────────────────────────────────────────────────────
 
 export interface CartItem {
@@ -180,9 +177,14 @@ export interface CartItem {
   quantity: number;
 }
 
-export function createCheckout(items: CartItem[], successUrl: string, cancelUrl: string) {
-  return request<{ url: string }>('/api/checkout', {
+/**
+ * Create a Stripe Checkout session.
+ * The server determines success/cancel redirect URLs automatically.
+ * Returns { url } — redirect the browser to that URL to complete payment.
+ */
+export function createCheckout(items: CartItem[]) {
+  return request<{ url: string }>('/api/checkout/create-session', {
     method: 'POST',
-    body: JSON.stringify({ items, successUrl, cancelUrl }),
+    body: JSON.stringify({ items }),
   });
 }
