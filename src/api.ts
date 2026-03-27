@@ -178,10 +178,29 @@ export interface NavSettings {
   showSocial: boolean;
   /** Show the Events link in the nav. Defaults to false. */
   showEvents: boolean;
+  /** Show a New Arrivals link in the nav. Defaults to false. */
+  showNewArrivals: boolean;
 }
 
 export function getNavSettings() {
   return request<NavSettings>('/api/settings/nav');
+}
+
+export interface NewArrivalsSettings {
+  /** Products added within this many days are shown as new arrivals. */
+  days: number;
+}
+
+export function getNewArrivalsSettings() {
+  return request<NewArrivalsSettings>('/api/settings/new-arrivals');
+}
+
+/**
+ * Fetch products considered "new arrivals" for this store.
+ * Uses the window configured in admin → Products → New Arrivals.
+ */
+export function getNewArrivals() {
+  return request<Product[]>('/api/products?public=1&newArrivals=1');
 }
 
 // ─── Checkout ───────────────────────────────────────────────────────────────
