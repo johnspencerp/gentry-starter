@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { useCart } from '../context/CartContext';
-import { getStoreName, getNavSettings, type NavSettings } from '../api';
+import { getStore, getNavSettings, type NavSettings, type StoreInfo } from '../api';
 
 const STORE_URL = (import.meta.env.VITE_STORE_URL as string)?.replace(/\/$/, '') || 'https://gentrycommerce.com';
 
 export default function Nav() {
   const { count } = useCart();
-  const [storeName, setStoreName] = useState('My Store');
+  const [storeInfo, setStoreInfo] = useState<Pick<StoreInfo, 'name' | 'bookingsEnabled'>>({ name: 'My Store', bookingsEnabled: true });
   const [nav, setNav] = useState<NavSettings>({
     showShop: true,
     showBookings: false,
@@ -17,7 +17,7 @@ export default function Nav() {
   });
 
   useEffect(() => {
-    getStoreName().then(s => setStoreName(s.name)).catch(() => {});
+    getStore().then(s => setStoreInfo({ name: s.name, bookingsEnabled: s.bookingsEnabled })).catch(() => {});
     getNavSettings().then(setNav).catch(() => {});
   }, []);
 
@@ -25,7 +25,7 @@ export default function Nav() {
     <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <Link href="/" className="text-xl font-bold tracking-tight">
-          {storeName}
+          {storeInfo.name}
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
@@ -35,7 +35,7 @@ export default function Nav() {
           {nav.showNewArrivals && (
             <Link href="/new-arrivals" className="hover:underline">New Arrivals</Link>
           )}
-          {nav.showBookings && (
+          {nav.showBookings && storeInfo.bookingsEnabled && (
             <Link href="/bookings" className="hover:underline">Book</Link>
           )}
           {nav.showEvents && (
