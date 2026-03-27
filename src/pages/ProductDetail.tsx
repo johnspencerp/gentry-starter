@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { getProduct, type Product, type ProductVariant } from '../api';
+import { getProduct, resolveImageUrl, type Product, type ProductVariant } from '../api';
 import { useCart } from '../context/CartContext';
 
 export default function ProductDetail() {
@@ -11,7 +11,7 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
-  const [imageIndex, setImageIndex] = useState(0);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
@@ -50,22 +50,36 @@ export default function ProductDetail() {
     );
   }
 
-  const currentPrice = selectedVariant
-    ? parseFloat(selectedVariant.price)
-    : parseFloat(product.price);
-  const currentCompare = selectedVariant?.compareAtPrice
-    ? parseFloat(selectedVariant.compareAtPrice)
-    : product.compareAtPrice ? parseFloat(product.compareAtPrice) : null;
-  const images = product.images ?? [];
+  // Price is always on the product (cents). Variants have no price.
+  const displayPrice = product.isOnSale && product.salePrice != null
+    ? product.salePrice
+    : product.price;
+  const originalPrice = product.isOnSale && product.salePrice != null ? product.price : null;
+
+  // Build gallery: prefer images[] array, fall back to imageUrl
+  const gallery: string[] = product.images.length > 0
+    ? product.images.map(img => resolveImageUrl(img.imageUrl) ?? '')
+    : resolveImageUrl(product.imageUrl) ? [resolveImageUrl(product.imageUrl)!] : [];
+
+  // Check availability from variants (configurable) or product.isActive (simple)
+  const totalStock = product.variants.length > 0
+    ? product.variants.reduce((s, v) => s + v.stock, 0)
+    : null;
+  const outOfStock = !product.isActive || (totalStock !== null && totalStock === 0);
+
+  const variantLabel = (v: ProductVariant) =>
+    [v.size, v.color].filter(Boolean).join(' / ') || `Variant ${v.id.slice(-4)}`;
 
   const handleAddToCart = () => {
+    const variantSuffix = selectedVariant ? ` — ${variantLabel(selectedVariant)}` : '';
     add({
       productId: product.id,
       variantId: selectedVariant?.id,
       quantity: 1,
-      name: product.name + (selectedVariant ? ` — ${selectedVariant.name}` : ''),
-      price: currentPrice.toFixed(2),
-      imageUrl: images[0]?.url,
+      name: product.name + variantSuffix,
+      // Store as a dollar-string so Cart can display/sum it
+      price: (displayPrice / 100).toFixed(2),
+      imageUrl: gallery[0],
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -81,28 +95,28 @@ export default function ProductDetail() {
       </button>
 
       <div className="grid md:grid-cols-2 gap-10">
-        {/* Images */}
+        {/* Gallery */}
         <div>
           <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-3">
-            {images[imageIndex] ? (
+            {gallery[galleryIndex] ? (
               <img
-                src={images[imageIndex].url}
-                alt={images[imageIndex].altText ?? product.name}
+                src={gallery[galleryIndex]}
+                alt={product.name}
                 className="w-full h-full object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-5xl text-gray-300">🛍</div>
             )}
           </div>
-          {images.length > 1 && (
+          {gallery.length > 1 && (
             <div className="flex gap-2 overflow-x-auto">
-              {images.map((img, i) => (
+              {gallery.map((url, i) => (
                 <button
-                  key={img.id}
-                  onClick={() => setImageIndex(i)}
-                  className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${i === imageIndex ? 'border-black' : 'border-transparent'}`}
+                  key={i}
+                  onClick={() => setGalleryIndex(i)}
+                  className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${i === galleryIndex ? 'border-black' : 'border-transparent'}`}
                 >
-                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  <img src={url} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -119,9 +133,12 @@ export default function ProductDetail() {
           </div>
 
           <div className="flex items-baseline gap-3">
-            <span className="text-2xl font-semibold">${currentPrice.toFixed(2)}</span>
-            {currentCompare && currentCompare > currentPrice && (
-              <span className="text-lg text-gray-400 line-through">${currentCompare.toFixed(2)}</span>
+            <span className="text-2xl font-semibold">${(displayPrice / 100).toFixed(2)}</span>
+            {originalPrice && (
+              <span className="text-lg text-gray-400 line-through">${(originalPrice / 100).toFixed(2)}</span>
+            )}
+            {product.isOnSale && (
+              <span className="text-sm bg-red-100 text-red-600 font-medium px-2 py-0.5 rounded">Sale</span>
             )}
           </div>
 
@@ -130,7 +147,7 @@ export default function ProductDetail() {
           )}
 
           {/* Variant selector */}
-          {product.variants && product.variants.length > 1 && (
+          {product.variants.length > 0 && (
             <div>
               <p className="text-sm font-medium mb-2">Select option</p>
               <div className="flex flex-wrap gap-2">
@@ -138,13 +155,14 @@ export default function ProductDetail() {
                   <button
                     key={v.id}
                     onClick={() => setSelectedVariant(v)}
-                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                    disabled={v.stock === 0}
+                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       selectedVariant?.id === v.id
                         ? 'bg-black text-white border-black'
                         : 'bg-white text-black border-gray-300 hover:border-black'
                     }`}
                   >
-                    {v.name}
+                    {variantLabel(v)}
                   </button>
                 ))}
               </div>
@@ -153,10 +171,10 @@ export default function ProductDetail() {
 
           <button
             onClick={handleAddToCart}
-            disabled={!product.inStock}
+            disabled={outOfStock}
             className="mt-2 w-full bg-black text-white font-semibold py-4 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {!product.inStock ? 'Out of stock' : added ? '✓ Added to cart' : 'Add to cart'}
+            {outOfStock ? 'Out of stock' : added ? '✓ Added to cart' : 'Add to cart'}
           </button>
         </div>
       </div>
