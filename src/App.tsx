@@ -6,6 +6,7 @@ import ProductDetail from './pages/ProductDetail';
 import Cart from './pages/Cart';
 import Bookings from './pages/Bookings';
 import CheckoutSuccess from './pages/CheckoutSuccess';
+import NewArrivals from './pages/NewArrivals';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <main className="flex-1">
           <Switch>
             <Route path="/" component={Home} />
+            <Route path="/new-arrivals" component={NewArrivals} />
             <Route path="/products/:id" component={ProductDetail} />
             <Route path="/cart" component={Cart} />
             <Route path="/bookings" component={Bookings} />
