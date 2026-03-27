@@ -6,19 +6,17 @@ export default function Cart() {
   const { items, remove, updateQty, clear } = useCart();
   const [, navigate] = useLocation();
 
+  // Cart stores price as a dollar-string (e.g. "29.99")
   const subtotal = items.reduce((sum, item) => sum + parseFloat(item.price) * item.quantity, 0);
 
   const handleCheckout = async () => {
     try {
-      const origin = window.location.origin;
       const result = await createCheckout(
-        items.map(i => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity })),
-        `${origin}/checkout/success`,
-        `${origin}/cart`
+        items.map(i => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity }))
       );
       clear();
       window.location.href = result.url;
-    } catch (err) {
+    } catch {
       alert('Checkout failed. Please try again.');
     }
   };
