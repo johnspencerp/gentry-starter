@@ -22,7 +22,6 @@ export default function Nav() {
 
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           <Link href="/" className="hover:underline">Shop</Link>
-          <Link href="/bookings" className="hover:underline">Book</Link>
         </nav>
 
         <Link
