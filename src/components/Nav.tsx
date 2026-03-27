@@ -13,6 +13,7 @@ export default function Nav() {
     showBookings: false,
     showSocial: false,
     showEvents: false,
+    showNewArrivals: false,
   });
 
   useEffect(() => {
@@ -30,6 +31,9 @@ export default function Nav() {
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           {nav.showShop && (
             <Link href="/" className="hover:underline">Shop</Link>
+          )}
+          {nav.showNewArrivals && (
+            <Link href="/new-arrivals" className="hover:underline">New Arrivals</Link>
           )}
           {nav.showBookings && (
             <Link href="/bookings" className="hover:underline">Book</Link>
