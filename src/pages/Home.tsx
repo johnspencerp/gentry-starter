@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getProducts, getHeroSettings, type Product, type HeroSettings } from '../api';
+import { resolveImageUrl } from '../api';
 import ProductCard from '../components/ProductCard';
 
 export default function Home() {
@@ -28,15 +29,17 @@ export default function Home() {
     setQuery(search);
   };
 
+  const heroImageUrl = resolveImageUrl(hero?.imageUrl);
+
   return (
     <>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      {hero && (
+      {hero && (hero.headline || hero.imageUrl) && (
         <section
           className="relative flex items-center justify-center min-h-[60vh] bg-gray-900 text-white text-center px-4"
-          style={hero.imageUrl ? { backgroundImage: `url(${hero.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+          style={heroImageUrl ? { backgroundImage: `url(${heroImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
         >
-          {hero.imageUrl && <div className="absolute inset-0 bg-black/50" />}
+          {heroImageUrl && <div className="absolute inset-0 bg-black/50" />}
           <div className="relative z-10 max-w-2xl mx-auto">
             {hero.headline && <h1 className="text-4xl md:text-6xl font-bold mb-4 leading-tight">{hero.headline}</h1>}
             {hero.subheadline && <p className="text-lg md:text-xl mb-8 text-white/80">{hero.subheadline}</p>}
