@@ -169,6 +169,21 @@ export function getHeroSettings() {
   return request<HeroSettings>('/api/settings/hero');
 }
 
+export interface NavSettings {
+  /** Show the Shop (products) link in the nav. Defaults to true. */
+  showShop: boolean;
+  /** Show the Bookings link in the nav. Defaults to true. */
+  showBookings: boolean;
+  /** Show the Social link in the nav. Defaults to false. */
+  showSocial: boolean;
+  /** Show the Events link in the nav. Defaults to false. */
+  showEvents: boolean;
+}
+
+export function getNavSettings() {
+  return request<NavSettings>('/api/settings/nav');
+}
+
 // ─── Checkout ───────────────────────────────────────────────────────────────
 
 export interface CartItem {
