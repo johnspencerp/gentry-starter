@@ -3,6 +3,28 @@ import { useParams, useLocation } from 'wouter';
 import { getProduct, resolveImageUrl, type Product, type ProductVariant } from '../api';
 import { useCart } from '../context/CartContext';
 
+function useSaleCountdown(saleEndDate?: string | null): string | null {
+  const [label, setLabel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!saleEndDate) return;
+    const end = new Date(saleEndDate).getTime();
+    function tick() {
+      const diff = end - Date.now();
+      if (diff <= 0) { setLabel(null); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      if (d > 0) setLabel(`Sale ends in ${d}d ${h}h`);
+      else if (h > 0) setLabel(`Sale ends in ${h}h ${m}m`);
+      else setLabel(`Sale ends in ${m}m`);
+    }
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [saleEndDate]);
+  return label;
+}
+
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -20,11 +42,25 @@ export default function ProductDetail() {
     getProduct(id)
       .then(p => {
         setProduct(p);
+        // Set page title
+        document.title = `${p.name} | Shop`;
         if (p.variants?.length) setSelectedVariant(p.variants[0]);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
+    return () => { document.title = 'Shop'; };
   }, [id]);
+
+  // Variant image switching: if the selected variant has its own imageUrl, show it first
+  useEffect(() => {
+    if (!selectedVariant?.imageUrl || !product) return;
+    const variantImgResolved = resolveImageUrl(selectedVariant.imageUrl);
+    if (!variantImgResolved) return;
+    const gallery = buildGallery(product);
+    const idx = gallery.indexOf(variantImgResolved);
+    if (idx >= 0) setGalleryIndex(idx);
+    else setGalleryIndex(0); // variant image not in gallery — fall back to main
+  }, [selectedVariant?.id]);
 
   if (loading) {
     return (
@@ -50,25 +86,37 @@ export default function ProductDetail() {
     );
   }
 
-  // Price is always on the product (cents). Variants have no price.
-  const displayPrice = product.isOnSale && product.salePrice != null
-    ? product.salePrice
-    : product.price;
-  const originalPrice = product.isOnSale && product.salePrice != null ? product.price : null;
+  const saleActive = product.isOnSale && product.salePrice != null
+    && (!product.saleEndDate || new Date(product.saleEndDate) > new Date());
+
+  const displayPrice = saleActive ? product.salePrice! : product.price;
+  const originalPrice = saleActive ? product.price : null;
 
   // Build gallery: prefer images[] array, fall back to imageUrl
-  const gallery: string[] = product.images.length > 0
-    ? product.images.map(img => resolveImageUrl(img.imageUrl) ?? '')
-    : resolveImageUrl(product.imageUrl) ? [resolveImageUrl(product.imageUrl)!] : [];
+  function buildGallery(p: Product): string[] {
+    if (p.images.length > 0) return p.images.map(img => resolveImageUrl(img.imageUrl) ?? '').filter(Boolean);
+    const fallback = resolveImageUrl(p.imageUrl);
+    return fallback ? [fallback] : [];
+  }
+  const gallery = buildGallery(product);
 
-  // Check availability from variants (configurable) or product.isActive (simple)
+  // Show variant image if the selected variant has one and it's not already in gallery
+  const variantImg = selectedVariant?.imageUrl ? resolveImageUrl(selectedVariant.imageUrl) : null;
+  const displayGallery = variantImg && !gallery.includes(variantImg)
+    ? [variantImg, ...gallery]
+    : gallery;
+
   const totalStock = product.variants.length > 0
     ? product.variants.reduce((s, v) => s + v.stock, 0)
-    : null;
+    : product.stock ?? null;
+  const threshold = product.lowStockThreshold ?? 5;
   const outOfStock = !product.isActive || (totalStock !== null && totalStock === 0);
+  const lowStock = !outOfStock && totalStock !== null && totalStock > 0 && totalStock <= threshold;
 
   const variantLabel = (v: ProductVariant) =>
     [v.size, v.color].filter(Boolean).join(' / ') || `Variant ${v.id.slice(-4)}`;
+
+  const countdown = useSaleCountdown(saleActive ? product.saleEndDate : null);
 
   const handleAddToCart = () => {
     const variantSuffix = selectedVariant ? ` — ${variantLabel(selectedVariant)}` : '';
@@ -77,9 +125,8 @@ export default function ProductDetail() {
       variantId: selectedVariant?.id,
       quantity: 1,
       name: product.name + variantSuffix,
-      // Store as a dollar-string so Cart can display/sum it
       price: (displayPrice / 100).toFixed(2),
-      imageUrl: gallery[0],
+      imageUrl: displayGallery[0] || gallery[0],
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -98,9 +145,9 @@ export default function ProductDetail() {
         {/* Gallery */}
         <div>
           <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-3">
-            {gallery[galleryIndex] ? (
+            {displayGallery[galleryIndex] ? (
               <img
-                src={gallery[galleryIndex]}
+                src={displayGallery[galleryIndex]}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
@@ -108,13 +155,13 @@ export default function ProductDetail() {
               <div className="w-full h-full flex items-center justify-center text-5xl text-gray-300">🛍</div>
             )}
           </div>
-          {gallery.length > 1 && (
+          {displayGallery.length > 1 && (
             <div className="flex gap-2 overflow-x-auto">
-              {gallery.map((url, i) => (
+              {displayGallery.map((url, i) => (
                 <button
-                  key={i}
+                  key={url}
                   onClick={() => setGalleryIndex(i)}
-                  className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${i === galleryIndex ? 'border-black' : 'border-transparent'}`}
+                  className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${i === galleryIndex ? 'border-black' : 'border-transparent hover:border-gray-300'}`}
                 >
                   <img src={url} alt="" className="w-full h-full object-cover" />
                 </button>
@@ -132,15 +179,19 @@ export default function ProductDetail() {
             <h1 className="text-3xl font-bold">{product.name}</h1>
           </div>
 
-          <div className="flex items-baseline gap-3">
+          <div className="flex items-baseline gap-3 flex-wrap">
             <span className="text-2xl font-semibold">${(displayPrice / 100).toFixed(2)}</span>
             {originalPrice && (
               <span className="text-lg text-gray-400 line-through">${(originalPrice / 100).toFixed(2)}</span>
             )}
-            {product.isOnSale && (
+            {saleActive && (
               <span className="text-sm bg-red-100 text-red-600 font-medium px-2 py-0.5 rounded">Sale</span>
             )}
           </div>
+
+          {countdown && (
+            <p className="text-sm text-red-500 font-medium -mt-3">⏱ {countdown}</p>
+          )}
 
           {product.description && (
             <p className="text-gray-600 leading-relaxed">{product.description}</p>
@@ -163,10 +214,19 @@ export default function ProductDetail() {
                     }`}
                   >
                     {variantLabel(v)}
+                    {v.stock > 0 && v.stock <= (threshold) && (
+                      <span className="ml-1 text-amber-500 text-xs">({v.stock} left)</span>
+                    )}
                   </button>
                 ))}
               </div>
             </div>
+          )}
+
+          {lowStock && (
+            <p className="text-sm text-amber-600 font-medium">
+              Only {totalStock} left — order soon!
+            </p>
           )}
 
           <button
