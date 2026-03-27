@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { useCart } from '../context/CartContext';
-import { getStoreName } from '../api';
+import { getStoreName, getNavSettings, type NavSettings } from '../api';
+
+const STORE_URL = (import.meta.env.VITE_STORE_URL as string)?.replace(/\/$/, '') || 'https://gentrycommerce.com';
 
 export default function Nav() {
   const { count } = useCart();
   const [storeName, setStoreName] = useState('My Store');
+  const [nav, setNav] = useState<NavSettings>({
+    showShop: true,
+    showBookings: false,
+    showSocial: false,
+    showEvents: false,
+  });
 
   useEffect(() => {
-    getStoreName()
-      .then(s => setStoreName(s.name))
-      .catch(() => {});
+    getStoreName().then(s => setStoreName(s.name)).catch(() => {});
+    getNavSettings().then(setNav).catch(() => {});
   }, []);
 
   return (
@@ -21,7 +28,18 @@ export default function Nav() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-          <Link href="/" className="hover:underline">Shop</Link>
+          {nav.showShop && (
+            <Link href="/" className="hover:underline">Shop</Link>
+          )}
+          {nav.showBookings && (
+            <Link href="/bookings" className="hover:underline">Book</Link>
+          )}
+          {nav.showEvents && (
+            <a href={`${STORE_URL}/events`} className="hover:underline">Events</a>
+          )}
+          {nav.showSocial && (
+            <a href={`${STORE_URL}/social`} className="hover:underline">Social</a>
+          )}
         </nav>
 
         <Link
