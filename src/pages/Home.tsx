@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { getProducts, getHeroSettings, type Product, type HeroSettings } from '../api';
+import { getProducts, getHeroSettings, getStore, type Product, type HeroSettings, type StoreInfo } from '../api';
 import { resolveImageUrl } from '../api';
 import ProductCard from '../components/ProductCard';
 
 export default function Home() {
   const [hero, setHero] = useState<HeroSettings | null>(null);
+  const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -13,6 +14,7 @@ export default function Home() {
 
   useEffect(() => {
     getHeroSettings().then(setHero).catch(() => {});
+    getStore().then(setStoreInfo).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -55,10 +57,17 @@ export default function Home() {
         </section>
       )}
 
+      {/* ── Tagline fallback when no hero is configured ──────────────────── */}
+      {(!hero || (!hero.headline && !hero.imageUrl)) && storeInfo?.tagline && (
+        <div className="bg-gray-50 border-b px-4 py-8 text-center">
+          <p className="text-lg text-gray-600">{storeInfo.tagline}</p>
+        </div>
+      )}
+
       {/* ── Products ─────────────────────────────────────────────────────── */}
       <section className="max-w-6xl mx-auto px-4 py-12">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <h2 className="text-2xl font-bold">Shop</h2>
+          <h2 className="text-2xl font-bold">{storeInfo?.name ?? 'Shop'}</h2>
           <form onSubmit={handleSearch} className="flex gap-2">
             <input
               type="text"
