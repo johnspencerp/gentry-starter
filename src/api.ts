@@ -86,10 +86,13 @@ export interface Product {
   description?: string;
   price: number;
   salePrice?: number | null;
+  saleEndDate?: string | null;
   isOnSale: boolean;
   imageUrl?: string | null;
   category: string;
   isActive: boolean;
+  lowStockThreshold?: number | null;
+  stock?: number | null;
   hideFromWebsite: boolean;
   archivedAt?: string | null;
   images: ProductImage[];
@@ -110,6 +113,63 @@ export interface StoreSettings {
   name: string;
   tagline?: string;
   logoUrl?: string;
+}
+
+export interface StoreInfo {
+  name: string;
+  tagline: string | null;
+  phone: string | null;
+  email: string | null;
+  logoUrl: string | null;
+  bookingsEnabled: boolean;
+}
+
+export interface TripType {
+  id: string;
+  name: string;
+  slug: string;
+  tagline?: string | null;
+  description: string;
+  duration: string;
+  price: number;
+  maxGuests: number;
+  imageUrl?: string | null;
+  features?: string[] | null;
+  serviceTypeKey: string;
+  serviceConfig?: Record<string, unknown> | null;
+}
+
+export interface PublicProvider {
+  id: string;
+  name: string;
+  displayName?: string | null;
+  role?: string | null;
+  bio?: string | null;
+  profilePhoto?: string | null;
+  slug?: string | null;
+  specialties?: string[] | null;
+}
+
+export interface BookingInput {
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  tripTypeId: string;
+  guideId?: string;
+  preferredDate: string;
+  alternateDate?: string;
+  startTime?: string;
+  partySize?: number;
+  duration?: string;
+  timeSlot?: string;
+  message?: string;
+  intakeAnswers?: Record<string, unknown>;
+}
+
+export interface AvailabilitySlots {
+  isBlocked: boolean;
+  availSlots: { time: string; available: boolean }[];
+  bookingCount: number;
 }
 
 export interface HeroSettings {
@@ -184,6 +244,40 @@ export interface NavSettings {
 
 export function getNavSettings() {
   return request<NavSettings>('/api/settings/nav');
+}
+
+/** Public store info — name, tagline, contact details, bookingsEnabled toggle. */
+export function getStore() {
+  return request<StoreInfo>('/api/store');
+}
+
+/** Active service types (trip types) available for booking. */
+export function getTripTypes() {
+  return request<TripType[]>('/api/trip-types');
+}
+
+/** Publicly-visible providers (guides, stylists, etc.) for this store. */
+export function getProviders() {
+  return request<PublicProvider[]>('/api/providers');
+}
+
+/**
+ * Check available time slots for a given service type and date.
+ * Returns { isBlocked, availSlots, bookingCount }.
+ */
+export function getAvailabilitySlots(tripTypeId: string, date: string) {
+  return request<AvailabilitySlots>(`/api/availability/slots?tripTypeId=${encodeURIComponent(tripTypeId)}&date=${encodeURIComponent(date)}`);
+}
+
+/**
+ * Submit a booking request.
+ * Required fields: customerName, tripTypeId, preferredDate.
+ */
+export function postBooking(data: BookingInput) {
+  return request<{ id: string; status: string; cancelToken: string }>('/api/bookings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export interface NewArrivalsSettings {
