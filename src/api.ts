@@ -363,7 +363,7 @@ export function getSubscriptionPlans() {
  * Response includes `isNewAccount` so you can show/hide the name field.
  */
 export function sendLoginCode(email: string, name?: string) {
-  return request<{ success: boolean; isNewAccount?: boolean; name?: string; error?: string }>(
+  return request<{ success?: boolean; isNewAccount?: boolean; needsName?: boolean; name?: string; error?: string }>(
     '/api/customer/send-code',
     { method: 'POST', body: JSON.stringify({ email, name }) },
   );
