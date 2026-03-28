@@ -3,8 +3,6 @@ import { Link } from 'wouter';
 import { useCart } from '../context/CartContext';
 import { getStore, getNavSettings, type NavSettings, type StoreInfo } from '../api';
 
-const STORE_URL = (import.meta.env.VITE_STORE_URL as string)?.replace(/\/$/, '') || 'https://gentrycommerce.com';
-
 export default function Nav() {
   const { count } = useCart();
   const [storeInfo, setStoreInfo] = useState<Pick<StoreInfo, 'name' | 'bookingsEnabled'>>({ name: 'My Store', bookingsEnabled: true });
@@ -43,10 +41,10 @@ export default function Nav() {
             <Link href="/membership" className="hover:underline">Membership</Link>
           )}
           {nav.showEvents && (
-            <a href={`${STORE_URL}/events`} className="hover:underline">Events</a>
+            <Link href="/events" className="hover:underline">Events</Link>
           )}
           {nav.showSocial && (
-            <a href={`${STORE_URL}/social`} className="hover:underline">Social</a>
+            <Link href="/social" className="hover:underline">Social</Link>
           )}
         </nav>
 
