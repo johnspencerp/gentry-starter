@@ -171,7 +171,7 @@ export default function Membership() {
       const base = `${window.location.origin}${window.location.pathname}`;
       const { url } = await createSubscriptionCheckout(
         tok, planId,
-        `${base}?sub=success`,
+        `${base}?sub=success&session_id={CHECKOUT_SESSION_ID}`,
         base,
       );
       window.location.href = url;
