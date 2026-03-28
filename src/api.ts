@@ -419,6 +419,41 @@ export function getSubscriptionPortalUrl(token: string, returnUrl?: string) {
   });
 }
 
+// ─── Events ─────────────────────────────────────────────────────────────────
+
+export interface StoreEvent {
+  id: string;
+  title: string;
+  description?: string | null;
+  date: string;
+  endDate?: string | null;
+  location?: string | null;
+  imageUrl?: string | null;
+  link?: string | null;
+  isActive: boolean;
+}
+
+/** Fetch active (public) events. */
+export function getEvents() {
+  return request<StoreEvent[]>('/api/events');
+}
+
+// ─── Social Posts ────────────────────────────────────────────────────────────
+
+export interface SocialPost {
+  id: string;
+  platform: string;
+  postUrl: string;
+  title?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+/** Fetch active social posts. */
+export function getSocialPosts() {
+  return request<SocialPost[]>('/api/social-posts');
+}
+
 // ─── Checkout ───────────────────────────────────────────────────────────────
 
 export interface CartItem {
