@@ -241,7 +241,7 @@ export interface NavSettings {
   /** Show a New Arrivals link in the nav. Defaults to false. */
   showNewArrivals: boolean;
   /** Show the Membership plans link in the nav. Defaults to false. */
-  showMemberships?: boolean;
+  showSubscriptions?: boolean;
 }
 
 export function getNavSettings() {
