@@ -7,6 +7,7 @@ import Cart from './pages/Cart';
 import Bookings from './pages/Bookings';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 import NewArrivals from './pages/NewArrivals';
+import Membership from './pages/Membership';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/products/:id" component={ProductDetail} />
             <Route path="/cart" component={Cart} />
             <Route path="/bookings" component={Bookings} />
+            <Route path="/membership" component={Membership} />
             <Route path="/checkout/success" component={CheckoutSuccess} />
             <Route>
               <div className="max-w-xl mx-auto py-32 px-4 text-center">
