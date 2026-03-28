@@ -185,8 +185,17 @@ export default function Membership() {
     } else {
       setPendingPlanId(planId);
       setAuthStep('email');
-      setTimeout(() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
+  }
+
+  function dismissAuth() {
+    setAuthStep('idle');
+    setAuthError(null);
+    setPendingPlanId(null);
+    setEmail('');
+    setCode('');
+    setName('');
+    setIsNewAccount(false);
   }
 
   const activeSub = mySubData?.subscription;
@@ -318,114 +327,136 @@ export default function Membership() {
         <p className="mt-4 text-sm text-red-500 text-center">{actionError}</p>
       )}
 
-      {/* Auth section — shown when Subscribe is clicked while signed out */}
-      <div id="auth-section" className="mt-12">
-        {!token && authStep === 'idle' && (
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-6 py-8 text-center">
-            <p className="text-gray-500 text-sm">
-              Already a member?{' '}
-              <button onClick={() => setAuthStep('email')} className="text-black font-semibold underline">
-                Sign in to view your account
-              </button>
-            </p>
-          </div>
-        )}
+      {/* Already a member sign-in prompt */}
+      {!token && authStep === 'idle' && (
+        <div className="mt-12 rounded-2xl border border-gray-200 bg-gray-50 px-6 py-8 text-center">
+          <p className="text-gray-500 text-sm">
+            Already a member?{' '}
+            <button onClick={() => setAuthStep('email')} className="text-black font-semibold underline">
+              Sign in to view your account
+            </button>
+          </p>
+        </div>
+      )}
 
-        {!token && authStep === 'email' && (
-          <div className="rounded-2xl border border-gray-200 bg-white px-6 py-8 max-w-md mx-auto space-y-4">
-            <h2 className="text-lg font-bold">
-              {pendingPlanId ? 'Sign in to subscribe' : 'Sign in to your account'}
-            </h2>
-            <p className="text-sm text-gray-500">
-              We'll email you a 4-digit code — no password needed.
-            </p>
-            <div>
-              <label className="block text-sm font-medium mb-1">Email address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !isNewAccount && handleSendCode()}
-                placeholder="you@example.com"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-              />
-            </div>
-            {isNewAccount && (
-              <div>
-                <label className="block text-sm font-medium mb-1">Your name <span className="text-gray-400">(new account)</span></label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSendCode()}
-                  placeholder="Full name"
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                />
-              </div>
+      {/* Signed-in footer */}
+      {token && customer && (
+        <div className="mt-12 rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-w-md">
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Signed in as</p>
+            <p className="text-sm font-semibold">{customer.name}</p>
+            <p className="text-xs text-gray-500">{customer.email}</p>
+          </div>
+          <button onClick={signOut} className="text-sm text-gray-400 hover:text-gray-700 font-medium border border-gray-200 rounded-lg px-3 py-1.5">
+            Sign out
+          </button>
+        </div>
+      )}
+
+      {/* Auth modal */}
+      {!token && (authStep === 'email' || authStep === 'code') && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onClick={dismissAuth}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-7 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* X close button */}
+            <button
+              onClick={dismissAuth}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-xl leading-none"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+
+            {authStep === 'email' && (
+              <>
+                <h2 className="text-lg font-bold pr-6">
+                  {pendingPlanId ? 'Sign in to subscribe' : 'Sign in to your account'}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  We'll email you a 4-digit code — no password needed.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && !isNewAccount && handleSendCode()}
+                    placeholder="you@example.com"
+                    autoFocus
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+                {isNewAccount && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Your name <span className="text-gray-400">(new account)</span></label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+                      placeholder="Full name"
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    />
+                  </div>
+                )}
+                {authError && <p className="text-sm text-red-500">{authError}</p>}
+                <button
+                  onClick={handleSendCode}
+                  disabled={authLoading || !email || (isNewAccount && !name)}
+                  className="w-full bg-black text-white font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40"
+                >
+                  {authLoading ? 'Sending…' : 'Send code'}
+                </button>
+              </>
             )}
-            {authError && <p className="text-sm text-red-500">{authError}</p>}
-            <button
-              onClick={handleSendCode}
-              disabled={authLoading || !email || (isNewAccount && !name)}
-              className="w-full bg-black text-white font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40"
-            >
-              {authLoading ? 'Sending…' : 'Send code'}
-            </button>
-            <button onClick={() => { setAuthStep('idle'); setAuthError(null); setPendingPlanId(null); }}
-              className="w-full text-sm text-gray-400 hover:text-gray-600">
-              Cancel
-            </button>
-          </div>
-        )}
 
-        {!token && authStep === 'code' && (
-          <div className="rounded-2xl border border-gray-200 bg-white px-6 py-8 max-w-md mx-auto space-y-4">
-            <h2 className="text-lg font-bold">Enter your code</h2>
-            <p className="text-sm text-gray-500">
-              We sent a 4-digit code to <strong>{email}</strong>.
-              Check your inbox — it expires in 10 minutes.
-            </p>
-            <div>
-              <label className="block text-sm font-medium mb-1">Code</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={4}
-                value={code}
-                onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-                onKeyDown={e => e.key === 'Enter' && code.length === 4 && handleVerifyCode()}
-                placeholder="1234"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black tracking-widest text-center text-lg"
-              />
-            </div>
-            {authError && <p className="text-sm text-red-500">{authError}</p>}
-            <button
-              onClick={handleVerifyCode}
-              disabled={authLoading || code.length !== 4}
-              className="w-full bg-black text-white font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40"
-            >
-              {authLoading ? 'Verifying…' : 'Verify code'}
-            </button>
-            <button onClick={() => { setAuthStep('email'); setCode(''); setAuthError(null); }}
-              className="w-full text-sm text-gray-400 hover:text-gray-600">
-              ← Back / resend
-            </button>
+            {authStep === 'code' && (
+              <>
+                <h2 className="text-lg font-bold pr-6">Check your email</h2>
+                <p className="text-sm text-gray-500">
+                  We sent a 4-digit code to <strong>{email}</strong>.
+                  It expires in 10 minutes.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={code}
+                    onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={e => e.key === 'Enter' && code.length === 4 && handleVerifyCode()}
+                    placeholder="1234"
+                    autoFocus
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black tracking-widest text-center text-lg"
+                  />
+                </div>
+                {authError && <p className="text-sm text-red-500">{authError}</p>}
+                <button
+                  onClick={handleVerifyCode}
+                  disabled={authLoading || code.length !== 4}
+                  className="w-full bg-black text-white font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40"
+                >
+                  {authLoading ? 'Verifying…' : 'Verify code'}
+                </button>
+                <button
+                  onClick={() => { setAuthStep('email'); setCode(''); setAuthError(null); }}
+                  className="w-full text-sm text-gray-400 hover:text-gray-600"
+                >
+                  ← Back / resend
+                </button>
+              </>
+            )}
           </div>
-        )}
-
-        {token && customer && (
-          <div className="rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-w-md">
-            <div>
-              <p className="text-xs text-gray-400 mb-0.5">Signed in as</p>
-              <p className="text-sm font-semibold">{customer.name}</p>
-              <p className="text-xs text-gray-500">{customer.email}</p>
-            </div>
-            <button onClick={signOut} className="text-sm text-gray-400 hover:text-gray-700 font-medium border border-gray-200 rounded-lg px-3 py-1.5">
-              Sign out
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
