@@ -356,19 +356,6 @@ export default function Membership() {
         </div>
       )}
 
-      {/* Signed-in footer */}
-      {token && customer && (
-        <div className="mt-12 rounded-2xl border border-gray-100 bg-gray-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-w-md">
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">Signed in as</p>
-            <p className="text-sm font-semibold">{customer.name}</p>
-            <p className="text-xs text-gray-500">{customer.email}</p>
-          </div>
-          <button onClick={signOut} className="text-sm text-gray-400 hover:text-gray-700 font-medium border border-gray-200 rounded-lg px-3 py-1.5">
-            Sign out
-          </button>
-        </div>
-      )}
 
       {/* Auth modal */}
       {!token && (authStep === 'email' || authStep === 'code') && (
