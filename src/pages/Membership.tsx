@@ -111,9 +111,9 @@ export default function Membership() {
     setAuthError(null);
     try {
       const res = await sendLoginCode(email, name || undefined);
-      if (res.isNewAccount && !name) {
+      if (res.needsName) {
+        // New account — show the name field, don't show an error
         setIsNewAccount(true);
-        setAuthError('This email isn\'t registered yet. Please enter your name to create an account.');
         setAuthLoading(false);
         return;
       }
