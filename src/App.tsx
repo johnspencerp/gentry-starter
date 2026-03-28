@@ -8,6 +8,8 @@ import Bookings from './pages/Bookings';
 import CheckoutSuccess from './pages/CheckoutSuccess';
 import NewArrivals from './pages/NewArrivals';
 import Membership from './pages/Membership';
+import Events from './pages/Events';
+import Social from './pages/Social';
 
 export default function App() {
   return (
@@ -22,6 +24,8 @@ export default function App() {
             <Route path="/cart" component={Cart} />
             <Route path="/bookings" component={Bookings} />
             <Route path="/membership" component={Membership} />
+            <Route path="/events" component={Events} />
+            <Route path="/social" component={Social} />
             <Route path="/checkout/success" component={CheckoutSuccess} />
             <Route>
               <div className="max-w-xl mx-auto py-32 px-4 text-center">
