@@ -240,6 +240,8 @@ export interface NavSettings {
   showEvents: boolean;
   /** Show a New Arrivals link in the nav. Defaults to false. */
   showNewArrivals: boolean;
+  /** Show the Membership plans link in the nav. Defaults to false. */
+  showMemberships?: boolean;
 }
 
 export function getNavSettings() {
@@ -295,6 +297,126 @@ export function getNewArrivalsSettings() {
  */
 export function getNewArrivals() {
   return request<Product[]>('/api/products?public=1&newArrivals=1');
+}
+
+// ─── Membership / Subscriptions ─────────────────────────────────────────────
+
+export type PlanType = 'booking_credits' | 'product_discount' | 'vip_access' | 'custom';
+
+/**
+ * A membership plan as returned by /api/subscriptions/plans.
+ * priceMonthly is in CENTS (e.g. 4900 = $49.00).
+ * planType controls which benefit fields are relevant:
+ *   booking_credits → creditsPerMonth / creditLabel / rolloverCredits
+ *   product_discount → discountPercent
+ *   vip_access / custom → manually managed — description carries the details
+ */
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  description: string | null;
+  planType: PlanType;
+  priceMonthly: number;
+  creditsPerMonth: number;
+  creditLabel: string;
+  rolloverCredits: boolean;
+  maxRollover: number | null;
+  discountPercent: number | null;
+  stripePriceId: string | null;
+  isActive: boolean;
+}
+
+export interface CustomerSubscription {
+  id: string;
+  status: string;
+  creditBalance: number;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+}
+
+export interface CustomerAuth {
+  token: string;
+  customer: { id: string; email: string; name: string };
+}
+
+export interface LedgerEntry {
+  id: string;
+  changeAmount: number;
+  reason: string;
+  createdAt: string;
+}
+
+export interface MySubscriptionResponse {
+  subscription: CustomerSubscription;
+  plan: SubscriptionPlan | null;
+  ledger: LedgerEntry[];
+}
+
+/** Fetch all active membership plans for this store. No auth required. */
+export function getSubscriptionPlans() {
+  return request<SubscriptionPlan[]>('/api/subscriptions/plans');
+}
+
+/**
+ * Step 1 of customer sign-in: send a 4-digit login code to the customer's email.
+ * Pass `name` when the email is not yet registered — it will create the account.
+ * Response includes `isNewAccount` so you can show/hide the name field.
+ */
+export function sendLoginCode(email: string, name?: string) {
+  return request<{ success: boolean; isNewAccount?: boolean; name?: string; error?: string }>(
+    '/api/customer/send-code',
+    { method: 'POST', body: JSON.stringify({ email, name }) },
+  );
+}
+
+/**
+ * Step 2 of customer sign-in: verify the 4-digit code emailed in step 1.
+ * Returns a session `token` — store it in localStorage and send it as
+ * `Authorization: Bearer <token>` on authenticated requests.
+ */
+export function verifyLoginCode(email: string, code: string, name?: string) {
+  return request<CustomerAuth>(
+    '/api/customer/verify-code',
+    { method: 'POST', body: JSON.stringify({ email, code, name }) },
+  );
+}
+
+/** Fetch the currently signed-in customer's subscription, credit balance, and recent ledger. */
+export function getMySubscription(token: string) {
+  return request<MySubscriptionResponse | null>('/api/subscriptions/my', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+/**
+ * Start a Stripe Checkout session for the given plan.
+ * Returns { url } — redirect the browser there to complete payment.
+ * Requires a valid customer session token.
+ */
+export function createSubscriptionCheckout(
+  token: string,
+  planId: string,
+  successUrl?: string,
+  cancelUrl?: string,
+) {
+  return request<{ url: string }>('/api/subscriptions/checkout', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ planId, successUrl, cancelUrl }),
+  });
+}
+
+/**
+ * Open the Stripe Billing Portal so the customer can manage or cancel their subscription.
+ * Returns { url } — redirect the browser there.
+ * Requires a valid customer session token.
+ */
+export function getSubscriptionPortalUrl(token: string, returnUrl?: string) {
+  return request<{ url: string }>('/api/subscriptions/portal', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ returnUrl }),
+  });
 }
 
 // ─── Checkout ───────────────────────────────────────────────────────────────
