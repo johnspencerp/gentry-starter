@@ -12,7 +12,7 @@ export default function Nav() {
     showSocial: false,
     showEvents: false,
     showNewArrivals: false,
-    showMemberships: false,
+    showSubscriptions: false,
   });
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function Nav() {
           {nav.showBookings && storeInfo.bookingsEnabled && (
             <Link href="/bookings" className="hover:underline">Book</Link>
           )}
-          {nav.showMemberships && (
+          {nav.showSubscriptions && (
             <Link href="/membership" className="hover:underline">Membership</Link>
           )}
           {nav.showEvents && (
