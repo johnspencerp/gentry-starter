@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   getSubscriptionPlans, sendLoginCode, verifyLoginCode,
-  getMySubscription, createSubscriptionCheckout, getSubscriptionPortalUrl,
+  getMySubscription, createSubscriptionCheckout, getSubscriptionPortalUrl, confirmSubscription,
   type SubscriptionPlan, type MySubscriptionResponse,
 } from '../api';
 
@@ -96,6 +96,22 @@ export default function Membership() {
       .finally(() => setLoadingSub(false));
   }, [token]);
 
+  // Auto-confirm subscription when Stripe redirects back with ?session_id=
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+    if (!sessionId || !token) return;
+    confirmSubscription(token, sessionId)
+      .then(({ subscription }) => {
+        setMySubData(prev => prev ? { ...prev, subscription } : { subscription, plan: null as any, ledger: [] });
+        // Clean session_id from URL without reloading
+        const url = new URL(window.location.href);
+        url.searchParams.delete('session_id');
+        window.history.replaceState({}, '', url.toString());
+      })
+      .catch(err => console.warn('Subscription confirm:', err.message));
+  }, [token]);
+
   function signOut() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(CUSTOMER_KEY);
@@ -152,10 +168,11 @@ export default function Membership() {
     setCheckoutLoading(planId);
     setActionError(null);
     try {
+      const base = `${window.location.origin}${window.location.pathname}`;
       const { url } = await createSubscriptionCheckout(
         tok, planId,
-        `${window.location.origin}/membership?sub=success`,
-        `${window.location.origin}/membership`,
+        `${base}?sub=success`,
+        base,
       );
       window.location.href = url;
     } catch (e: any) {

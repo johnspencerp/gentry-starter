@@ -407,6 +407,22 @@ export function createSubscriptionCheckout(
 }
 
 /**
+ * Confirm a subscription after Stripe redirects back to the success URL.
+ * Pass the `session_id` query param Stripe appends to the success URL.
+ * This records the subscription in the database without needing a webhook.
+ */
+export function confirmSubscription(token: string, sessionId: string) {
+  return request<{ subscription: CustomerSubscription; plan: SubscriptionPlan; alreadyActive: boolean }>(
+    '/api/subscriptions/confirm',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ sessionId }),
+    }
+  );
+}
+
+/**
  * Open the Stripe Billing Portal so the customer can manage or cancel their subscription.
  * Returns { url } — redirect the browser there.
  * Requires a valid customer session token.
