@@ -492,13 +492,20 @@ export function createCheckout(items: CartItem[]) {
 
   // ─── Directory / Network ──────────────────────────────────────────────────────
 
+  export interface LocationPoint {
+    name: string;
+    lat: string;
+    lng: string;
+  }
+
   export interface DirectoryFieldDef {
     key: string;
     label: string;
-    type: 'text' | 'url' | 'phone' | 'email' | 'textarea' | 'image' | 'select';
+    type: 'text' | 'url' | 'phone' | 'email' | 'textarea' | 'image' | 'select' | 'location';
     required?: boolean;
     halfWidth?: boolean;
     options?: string[];
+    allowMultiple?: boolean;
   }
 
   export interface DirectoryType {
