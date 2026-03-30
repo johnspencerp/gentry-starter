@@ -11,6 +11,7 @@ import { Route, Switch } from 'wouter';
   import Events from './pages/Events';
   import Social from './pages/Social';
   import Network from './pages/Network';
+  import NetworkEntry from './pages/NetworkEntry';
 
   export default function App() {
     return (
@@ -27,6 +28,7 @@ import { Route, Switch } from 'wouter';
               <Route path="/membership" component={Membership} />
               <Route path="/events" component={Events} />
               <Route path="/social" component={Social} />
+              <Route path="/network/:typeSlug/:entryId" component={NetworkEntry} />
               <Route path="/network" component={Network} />
               <Route path="/checkout/success" component={CheckoutSuccess} />
               <Route>
