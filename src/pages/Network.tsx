@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
   import { Link } from 'wouter';
   import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+  import MarkerClusterGroup from 'react-leaflet-cluster';
+  import 'react-leaflet-cluster/lib/assets/MarkerCluster.css';
+  import 'react-leaflet-cluster/lib/assets/MarkerCluster.Default.css';
   import L from 'leaflet';
   import { MapPin, List, Map as MapIcon, Phone, Globe, Mail, Search, ExternalLink, ArrowRight, Navigation } from 'lucide-react';
   import { getDirectoryTypes, getDirectoryEntries, resolveImageUrl } from '../api';
@@ -12,6 +15,8 @@ import { useState, useEffect } from 'react';
     iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
     shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
   });
+
+  const PAGE_SIZE = 24;
 
   function makeColoredIcon(color: string, small = false) {
     const w = small ? 16 : 24; const h = small ? 24 : 36; const r = small ? 3 : 4.5;
@@ -150,6 +155,7 @@ import { useState, useEffect } from 'react';
     const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
     const [activeTypeId, setActiveTypeId] = useState('');
     const [search, setSearch] = useState('');
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const [types, setTypes] = useState<DirectoryType[]>([]);
     const [allEntries, setAllEntries] = useState<DirectoryEntry[]>([]);
     const [loading, setLoading] = useState(true);
@@ -161,6 +167,8 @@ import { useState, useEffect } from 'react';
         .catch(err => setError(err.message))
         .finally(() => setLoading(false));
     }, []);
+
+    useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeTypeId, search]);
 
     const activeType = types.find(t => t.id === activeTypeId);
     const pageTitle = activeType?.pageTitle || (types.length > 0 ? 'Our Network' : 'The Network');
@@ -260,47 +268,59 @@ import { useState, useEffect } from 'react';
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <FitBounds main={mainPins.map(p => p.coord)} locs={locPins.map(p => p.coord)} />
-                    {mainPins.map(({ entry }) => {
-                      const type = typeMap[entry.typeId];
-                      return (
-                        <Marker key={`main-${entry.id}`} position={[parseFloat(entry.lat!), parseFloat(entry.lng!)]}
-                          icon={makeColoredIcon(type?.color || '#3b82f6')}>
-                          <Popup>
-                            <p className="font-semibold text-sm">{entry.name}</p>
-                            {[entry.city, entry.state].filter(Boolean).length > 0 && (
-                              <p className="text-xs text-gray-500">{[entry.city, entry.state].filter(Boolean).join(', ')}</p>
-                            )}
-                            <Link href={`/network/${type?.slug || 'entry'}/${entry.id}`}
-                              className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
-                              View Profile <ArrowRight className="w-3 h-3" />
-                            </Link>
-                          </Popup>
-                        </Marker>
-                      );
-                    })}
-                    {locPins.map((pin, i) => {
-                      const type = typeMap[pin.entry.typeId];
-                      return (
-                        <Marker key={`loc-${pin.entry.id}-${i}`} position={pin.coord}
-                          icon={makeColoredIcon(type?.color || '#3b82f6', true)}>
-                          <Popup>
-                            <p className="font-medium text-sm">{pin.name}</p>
-                            <p className="text-xs text-gray-500">{pin.entry.name}</p>
-                            <Link href={`/network/${type?.slug || 'entry'}/${pin.entry.id}`}
-                              className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
-                              View Profile <ArrowRight className="w-3 h-3" />
-                            </Link>
-                          </Popup>
-                        </Marker>
-                      );
-                    })}
+                    <MarkerClusterGroup chunkedLoading>
+                      {mainPins.map(({ entry }) => {
+                        const type = typeMap[entry.typeId];
+                        return (
+                          <Marker key={`main-${entry.id}`} position={[parseFloat(entry.lat!), parseFloat(entry.lng!)]}
+                            icon={makeColoredIcon(type?.color || '#3b82f6')}>
+                            <Popup>
+                              <p className="font-semibold text-sm">{entry.name}</p>
+                              {[entry.city, entry.state].filter(Boolean).length > 0 && (
+                                <p className="text-xs text-gray-500">{[entry.city, entry.state].filter(Boolean).join(', ')}</p>
+                              )}
+                              <Link href={`/network/${type?.slug || 'entry'}/${entry.id}`}
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                                View Profile <ArrowRight className="w-3 h-3" />
+                              </Link>
+                            </Popup>
+                          </Marker>
+                        );
+                      })}
+                      {locPins.map((pin, i) => {
+                        const type = typeMap[pin.entry.typeId];
+                        return (
+                          <Marker key={`loc-${pin.entry.id}-${i}`} position={pin.coord}
+                            icon={makeColoredIcon(type?.color || '#3b82f6', true)}>
+                            <Popup>
+                              <p className="font-medium text-sm">{pin.name}</p>
+                              <p className="text-xs text-gray-500">{pin.entry.name}</p>
+                              <Link href={`/network/${type?.slug || 'entry'}/${pin.entry.id}`}
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                                View Profile <ArrowRight className="w-3 h-3" />
+                              </Link>
+                            </Popup>
+                          </Marker>
+                        );
+                      })}
+                    </MarkerClusterGroup>
                   </MapContainer>
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredEntries.map(entry => (
-                    <EntryCard key={entry.id} entry={entry} type={typeMap[entry.typeId]} />
-                  ))}
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {filteredEntries.slice(0, visibleCount).map(entry => (
+                      <EntryCard key={entry.id} entry={entry} type={typeMap[entry.typeId]} />
+                    ))}
+                  </div>
+                  {visibleCount < filteredEntries.length && (
+                    <div className="flex justify-center pt-2">
+                      <button onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                        className="px-6 py-2 rounded-full border text-sm font-medium hover:bg-gray-50 transition-colors">
+                        Load more ({filteredEntries.length - visibleCount} remaining)
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
