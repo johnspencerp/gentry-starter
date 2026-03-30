@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
+  import { Link } from 'wouter';
   import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
   import L from 'leaflet';
-  import { MapPin, List, Map as MapIcon, Phone, Globe, Mail, Search, ExternalLink } from 'lucide-react';
+  import { MapPin, List, Map as MapIcon, Phone, Globe, Mail, Search, ExternalLink, ArrowRight, Navigation } from 'lucide-react';
   import { getDirectoryTypes, getDirectoryEntries, resolveImageUrl } from '../api';
-  import type { DirectoryType, DirectoryEntry, DirectoryFieldDef } from '../api';
+  import type { DirectoryType, DirectoryEntry, DirectoryFieldDef, LocationPoint } from '../api';
 
-  // Fix Leaflet default marker icon paths broken by bundlers
   delete (L.Icon.Default.prototype as any)._getIconUrl;
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -13,31 +13,32 @@ import { useState, useEffect } from 'react';
     shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
   });
 
-  function makeColoredIcon(color: string) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
-      <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24c0-6.627-5.373-12-12-12z"
-        fill="${color}" stroke="white" stroke-width="1.5"/>
-      <circle cx="12" cy="12" r="4.5" fill="white" opacity="0.9"/>
-    </svg>`;
-    return L.divIcon({ html: svg, className: '', iconSize: [24, 36], iconAnchor: [12, 36], popupAnchor: [0, -36] });
+  function makeColoredIcon(color: string, small = false) {
+    const w = small ? 16 : 24; const h = small ? 24 : 36; const r = small ? 3 : 4.5;
+    return L.divIcon({
+      html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="${w}" height="${h}">
+        <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24c0-6.627-5.373-12-12-12z"
+          fill="${color}" stroke="white" stroke-width="1.5" opacity="${small ? 0.75 : 1}"/>
+        <circle cx="12" cy="12" r="${r}" fill="white" opacity="0.9"/>
+      </svg>`,
+      className: '', iconSize: [w, h], iconAnchor: [w / 2, h], popupAnchor: [0, -h],
+    });
   }
 
-  function FitBounds({ entries }: { entries: DirectoryEntry[] }) {
-    const map = useMap();
-    useEffect(() => {
-      const withCoords = entries.filter(e => e.lat && e.lng);
-      if (withCoords.length === 0) return;
-      if (withCoords.length === 1) {
-        map.setView([parseFloat(withCoords[0].lat!), parseFloat(withCoords[0].lng!)], 10);
-        return;
-      }
-      const bounds = L.latLngBounds(withCoords.map(e => [parseFloat(e.lat!), parseFloat(e.lng!)] as [number, number]));
-      map.fitBounds(bounds, { padding: [40, 40] });
-    }, [entries, map]);
-    return null;
+  export function extractLocationPins(entry: DirectoryEntry, typeDefs: DirectoryFieldDef[]) {
+    const pins: Array<LocationPoint & { fieldLabel: string }> = [];
+    const values = (entry.fields as Record<string, any>) || {};
+    for (const def of typeDefs) {
+      if (def.type !== 'location') continue;
+      const val = values[def.key];
+      if (!val) continue;
+      const raw: LocationPoint[] = Array.isArray(val) ? val : [val];
+      pins.push(...raw.filter(p => p.lat && p.lng).map(p => ({ ...p, fieldLabel: def.label })));
+    }
+    return pins;
   }
 
-  function FieldValue({ def, value }: { def: DirectoryFieldDef; value: string }) {
+  export function FieldValue({ def, value }: { def: DirectoryFieldDef; value: any }) {
     if (!value) return null;
     if (def.type === 'url') return (
       <a href={value.startsWith('http') ? value : `https://${value}`} target="_blank" rel="noopener noreferrer"
@@ -60,18 +61,41 @@ import { useState, useEffect } from 'react';
     if (def.type === 'image') return (
       <img src={resolveImageUrl(value)} alt={def.label} className="w-full h-32 object-cover rounded-md mt-1" />
     );
+    if (def.type === 'location') {
+      const pts: LocationPoint[] = Array.isArray(value) ? value : [value];
+      return (
+        <div className="space-y-0.5">
+          {pts.filter(p => p.name).map((p, i) => (
+            <p key={i} className="text-sm flex items-center gap-1">
+              <Navigation className="w-3.5 h-3.5 shrink-0 text-gray-500" />{p.name}
+            </p>
+          ))}
+        </div>
+      );
+    }
     if (def.type === 'textarea') return <p className="text-sm text-gray-500 leading-relaxed">{value}</p>;
     return <p className="text-sm">{value}</p>;
   }
 
+  function FitBounds({ main, locs }: { main: [number,number][]; locs: [number,number][] }) {
+    const map = useMap();
+    useEffect(() => {
+      const all = [...main, ...locs];
+      if (all.length === 0) return;
+      if (all.length === 1) { map.setView(all[0], 10); return; }
+      map.fitBounds(L.latLngBounds(all), { padding: [40, 40] });
+    }, [main, locs, map]);
+    return null;
+  }
+
   function EntryCard({ entry, type }: { entry: DirectoryEntry; type?: DirectoryType }) {
     const fields: DirectoryFieldDef[] = (type?.fields as DirectoryFieldDef[]) || [];
-    const values: Record<string, string> = (entry.fields as Record<string, string>) || {};
+    const values: Record<string, any> = (entry.fields as Record<string, any>) || {};
     const location = [entry.city, entry.state].filter(Boolean).join(', ');
-
+    const locationPins = extractLocationPins(entry, fields);
     return (
-      <div className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
-        <div className="flex items-start gap-3">
+      <div className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow flex flex-col">
+        <div className="flex items-start gap-3 flex-1">
           <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: type?.color || '#3b82f6' }} />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -88,66 +112,36 @@ import { useState, useEffect } from 'react';
                 <MapPin className="w-3 h-3" />{location}
               </p>
             )}
-            {fields.length > 0 && (
-              <div className="mt-3 space-y-1.5">
-                {fields.map(def => values[def.key] ? (
-                  <div key={def.key}>
-                    {def.type !== 'textarea' && def.type !== 'image' && (
-                      <span className="text-xs font-medium text-gray-500">{def.label}: </span>
-                    )}
-                    <FieldValue def={def} value={values[def.key]} />
-                  </div>
-                ) : null)}
+            {locationPins.length > 0 && (
+              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                <Navigation className="w-3 h-3" />
+                {locationPins.slice(0, 3).map(p => p.name).join(', ')}
+                {locationPins.length > 3 ? ` +${locationPins.length - 3} more` : ''}
+              </p>
+            )}
+            {fields.filter(d => d.type !== 'location' && values[d.key]).slice(0, 3).map(def => (
+              <div key={def.key} className="mt-1.5">
+                {def.type !== 'textarea' && def.type !== 'image' && (
+                  <span className="text-xs font-medium text-gray-500">{def.label}: </span>
+                )}
+                <FieldValue def={def} value={values[def.key]} />
               </div>
-            )}
-            {entry.address && (
-              <a href={`https://maps.google.com/?q=${encodeURIComponent([entry.address, entry.city, entry.state, entry.zip].filter(Boolean).join(', '))}`}
-                target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-2">
-                <MapPin className="w-3 h-3" /> Get Directions
-              </a>
-            )}
+            ))}
           </div>
         </div>
-      </div>
-    );
-  }
-
-  function PopupContent({ entry, type }: { entry: DirectoryEntry; type?: DirectoryType }) {
-    const fields: DirectoryFieldDef[] = (type?.fields as DirectoryFieldDef[]) || [];
-    const values: Record<string, string> = (entry.fields as Record<string, string>) || {};
-    const location = [entry.city, entry.state].filter(Boolean).join(', ');
-    return (
-      <div className="min-w-[180px] max-w-[240px]">
-        <p className="font-semibold text-sm">{entry.name}</p>
-        {location && <p className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" />{location}</p>}
-        {fields.slice(0, 4).map(def => values[def.key] ? (
-          <div key={def.key} className="mt-1">
-            {def.type === 'url' ? (
-              <a href={values[def.key].startsWith('http') ? values[def.key] : `https://${values[def.key]}`}
-                target="_blank" rel="noopener noreferrer" className="text-blue-600 text-xs hover:underline flex items-center gap-1">
-                <Globe className="w-3 h-3" />{def.label}
-              </a>
-            ) : def.type === 'phone' ? (
-              <a href={`tel:${values[def.key]}`} className="text-xs flex items-center gap-1">
-                <Phone className="w-3 h-3" />{values[def.key]}
-              </a>
-            ) : def.type === 'email' ? (
-              <a href={`mailto:${values[def.key]}`} className="text-xs flex items-center gap-1">
-                <Mail className="w-3 h-3" />{values[def.key]}
-              </a>
-            ) : def.type === 'image' ? null : (
-              <p className="text-xs text-gray-600">{values[def.key]}</p>
-            )}
-          </div>
-        ) : null)}
-        {entry.address && (
-          <a href={`https://maps.google.com/?q=${encodeURIComponent([entry.address, entry.city, entry.state, entry.zip].filter(Boolean).join(', '))}`}
-            target="_blank" rel="noopener noreferrer"
-            className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1.5">
-            <MapPin className="w-3 h-3" />Directions
-          </a>
-        )}
+        <div className="flex items-center justify-between mt-3 pt-2 border-t gap-2">
+          {entry.address ? (
+            <a href={`https://maps.google.com/?q=${encodeURIComponent([entry.address, entry.city, entry.state, entry.zip].filter(Boolean).join(', '))}`}
+              target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+              <MapPin className="w-3 h-3" /> Directions
+            </a>
+          ) : <span />}
+          <Link href={`/network/${type?.slug || 'entry'}/${entry.id}`}
+            className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+            View Profile <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
       </div>
     );
   }
@@ -171,6 +165,10 @@ import { useState, useEffect } from 'react';
     const activeType = types.find(t => t.id === activeTypeId);
     const pageTitle = activeType?.pageTitle || (types.length > 0 ? 'Our Network' : 'The Network');
     const pageSubtitle = activeType?.pageSubtitle || 'Find us near you';
+    const typeMap = Object.fromEntries(types.map(t => [t.id, t]));
+    const typeCounts = types.reduce<Record<string, number>>((acc, t) => {
+      acc[t.id] = allEntries.filter(e => e.typeId === t.id).length; return acc;
+    }, {});
 
     useEffect(() => { document.title = pageTitle; }, [pageTitle]);
 
@@ -178,21 +176,21 @@ import { useState, useEffect } from 'react';
       if (activeTypeId && e.typeId !== activeTypeId) return false;
       if (search) {
         const q = search.toLowerCase();
-        const vals = Object.values((e.fields as Record<string, string>) || {}).join(' ').toLowerCase();
-        return e.name.toLowerCase().includes(q) ||
-          (e.city || '').toLowerCase().includes(q) ||
-          (e.state || '').toLowerCase().includes(q) ||
-          vals.includes(q);
+        const vals = Object.values((e.fields as Record<string, any>) || {}).map((v: any) =>
+          typeof v === 'string' ? v : Array.isArray(v) ? v.map((p: any) => p.name || '').join(' ') : ''
+        ).join(' ').toLowerCase();
+        return e.name.toLowerCase().includes(q) || (e.city||'').toLowerCase().includes(q) ||
+          (e.state||'').toLowerCase().includes(q) || vals.includes(q);
       }
       return true;
     });
 
-    const mapEntries = filteredEntries.filter(e => e.lat && e.lng);
-    const typeMap = Object.fromEntries(types.map(t => [t.id, t]));
-    const typeCounts = types.reduce<Record<string, number>>((acc, t) => {
-      acc[t.id] = allEntries.filter(e => e.typeId === t.id).length;
-      return acc;
-    }, {});
+    const mainPins = filteredEntries.filter(e => e.lat && e.lng)
+      .map(e => ({ entry: e, coord: [parseFloat(e.lat!), parseFloat(e.lng!)] as [number,number] }));
+    const locPins = filteredEntries.flatMap(e => {
+      const defs = (typeMap[e.typeId]?.fields as DirectoryFieldDef[]) || [];
+      return extractLocationPins(e, defs).map(p => ({ entry: e, name: p.name, coord: [parseFloat(p.lat), parseFloat(p.lng)] as [number,number] }));
+    });
 
     return (
       <div className="min-h-screen">
@@ -218,7 +216,6 @@ import { useState, useEffect } from 'react';
         ) : (
           <section className="py-6">
             <div className="max-w-6xl mx-auto px-4 space-y-4">
-              {/* Controls */}
               <div className="flex flex-wrap gap-3 items-center justify-between">
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => setActiveTypeId('')}
@@ -226,7 +223,7 @@ import { useState, useEffect } from 'react';
                     All ({allEntries.length})
                   </button>
                   {types.map(t => (
-                    <button key={t.id} onClick={() => setActiveTypeId(prev => prev === t.id ? '' : t.id)}
+                    <button key={t.id} onClick={() => setActiveTypeId(p => p === t.id ? '' : t.id)}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${activeTypeId === t.id ? 'text-white border-transparent' : 'border-gray-300 hover:bg-gray-50'}`}
                       style={activeTypeId === t.id ? { backgroundColor: t.color || '#3b82f6' } : {}}>
                       {t.icon ? `${t.icon} ` : ''}{t.name} ({typeCounts[t.id] || 0})
@@ -236,17 +233,16 @@ import { useState, useEffect } from 'react';
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                    <input type="text" placeholder="Search..."
-                      value={search} onChange={e => setSearch(e.target.value)}
+                    <input type="text" placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)}
                       className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md w-40 focus:outline-none focus:ring-2 focus:ring-gray-400" />
                   </div>
                   <div className="flex rounded-md border border-gray-300 overflow-hidden">
                     <button onClick={() => setViewMode('map')}
-                      className={`px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors ${viewMode === 'map' ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}>
+                      className={`px-3 py-1.5 text-sm flex items-center gap-1.5 ${viewMode === 'map' ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}>
                       <MapIcon className="w-4 h-4" /> Map
                     </button>
                     <button onClick={() => setViewMode('list')}
-                      className={`px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors ${viewMode === 'list' ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}>
+                      className={`px-3 py-1.5 text-sm flex items-center gap-1.5 ${viewMode === 'list' ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}>
                       <List className="w-4 h-4" /> List
                     </button>
                   </div>
@@ -257,34 +253,48 @@ import { useState, useEffect } from 'react';
                 <div className="text-center py-16">
                   <MapPin className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p className="text-lg font-medium">No results found</p>
-                  <p className="text-gray-500 text-sm">Try a different filter or search term.</p>
                 </div>
               ) : viewMode === 'map' ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl overflow-hidden border shadow-sm" style={{ height: '520px' }}>
-                    <MapContainer center={[39.5, -98.35]} zoom={4} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      <FitBounds entries={mapEntries} />
-                      {mapEntries.map(entry => {
-                        const type = typeMap[entry.typeId];
-                        return (
-                          <Marker key={entry.id}
-                            position={[parseFloat(entry.lat!), parseFloat(entry.lng!)]}
-                            icon={makeColoredIcon(type?.color || '#3b82f6')}>
-                            <Popup><PopupContent entry={entry} type={type} /></Popup>
-                          </Marker>
-                        );
-                      })}
-                    </MapContainer>
-                  </div>
-                  {mapEntries.length < filteredEntries.length && (
-                    <p className="text-xs text-gray-400 text-center">
-                      {filteredEntries.length - mapEntries.length} {filteredEntries.length - mapEntries.length === 1 ? 'entry' : 'entries'} not shown on map (no coordinates). Switch to List view to see all.
-                    </p>
-                  )}
+                <div className="rounded-xl overflow-hidden border shadow-sm" style={{ height: '520px' }}>
+                  <MapContainer center={[39.5, -98.35]} zoom={4} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
+                    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <FitBounds main={mainPins.map(p => p.coord)} locs={locPins.map(p => p.coord)} />
+                    {mainPins.map(({ entry }) => {
+                      const type = typeMap[entry.typeId];
+                      return (
+                        <Marker key={`main-${entry.id}`} position={[parseFloat(entry.lat!), parseFloat(entry.lng!)]}
+                          icon={makeColoredIcon(type?.color || '#3b82f6')}>
+                          <Popup>
+                            <p className="font-semibold text-sm">{entry.name}</p>
+                            {[entry.city, entry.state].filter(Boolean).length > 0 && (
+                              <p className="text-xs text-gray-500">{[entry.city, entry.state].filter(Boolean).join(', ')}</p>
+                            )}
+                            <Link href={`/network/${type?.slug || 'entry'}/${entry.id}`}
+                              className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                              View Profile <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          </Popup>
+                        </Marker>
+                      );
+                    })}
+                    {locPins.map((pin, i) => {
+                      const type = typeMap[pin.entry.typeId];
+                      return (
+                        <Marker key={`loc-${pin.entry.id}-${i}`} position={pin.coord}
+                          icon={makeColoredIcon(type?.color || '#3b82f6', true)}>
+                          <Popup>
+                            <p className="font-medium text-sm">{pin.name}</p>
+                            <p className="text-xs text-gray-500">{pin.entry.name}</p>
+                            <Link href={`/network/${type?.slug || 'entry'}/${pin.entry.id}`}
+                              className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                              View Profile <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          </Popup>
+                        </Marker>
+                      );
+                    })}
+                  </MapContainer>
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
