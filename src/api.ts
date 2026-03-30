@@ -489,3 +489,53 @@ export function createCheckout(items: CartItem[]) {
     body: JSON.stringify({ items }),
   });
 }
+
+  // ─── Directory / Network ──────────────────────────────────────────────────────
+
+  export interface DirectoryFieldDef {
+    key: string;
+    label: string;
+    type: 'text' | 'url' | 'phone' | 'email' | 'textarea' | 'image' | 'select';
+    required?: boolean;
+    halfWidth?: boolean;
+    options?: string[];
+  }
+
+  export interface DirectoryType {
+    id: string;
+    name: string;
+    slug: string;
+    color: string | null;
+    icon: string | null;
+    pageTitle: string | null;
+    pageSubtitle: string | null;
+    fields: DirectoryFieldDef[];
+    isActive: boolean;
+    displayOrder: number;
+  }
+
+  export interface DirectoryEntry {
+    id: string;
+    typeId: string;
+    name: string;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+    lat: string | null;
+    lng: string | null;
+    fields: Record<string, string>;
+    isActive: boolean;
+  }
+
+  /** Fetch active directory entity types for this store. */
+  export function getDirectoryTypes() {
+    return request<DirectoryType[]>('/api/directory/types');
+  }
+
+  /** Fetch active directory entries, optionally filtered by typeId. */
+  export function getDirectoryEntries(typeId?: string) {
+    const qs = typeId ? `?typeId=${encodeURIComponent(typeId)}` : '';
+    return request<DirectoryEntry[]>(`/api/directory/entries${qs}`);
+  }
+  
